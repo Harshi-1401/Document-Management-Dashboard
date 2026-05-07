@@ -1,18 +1,14 @@
-// db.js - MySQL connection setup using mysql2
-const mysql = require('mysql2');
-require('dotenv').config();
+// db.js - MongoDB connection using Mongoose
+const mongoose = require('mongoose');
 
-// Create a connection pool (better than single connection for multiple requests)
-const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  waitForConnections: true,
-  connectionLimit: 10,
-});
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URI);
+    console.log('MongoDB connected successfully.');
+  } catch (err) {
+    console.error('MongoDB connection failed:', err.message);
+    process.exit(1); // stop the server if DB fails
+  }
+};
 
-// promisePool lets us use async/await instead of callbacks
-const promisePool = pool.promise();
-
-module.exports = promisePool;
+module.exports = connectDB;

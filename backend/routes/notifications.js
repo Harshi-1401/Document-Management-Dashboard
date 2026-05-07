@@ -1,15 +1,13 @@
-// notifications.js - Routes for fetching and marking notifications
+// notifications.js - Fetch and mark notifications using Mongoose
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db');
+const Notification = require('../models/Notification');
 
-// GET /notifications - Fetch all notifications
+// GET /notifications - Fetch all notifications, newest first
 router.get('/notifications', async (req, res) => {
   try {
-    const [rows] = await db.query(
-      'SELECT * FROM notifications ORDER BY createdAt DESC'
-    );
-    res.json(rows);
+    const notifications = await Notification.find().sort({ createdAt: -1 });
+    res.json(notifications);
   } catch (err) {
     console.error('Fetch notifications error:', err);
     res.status(500).json({ error: 'Failed to fetch notifications' });
@@ -19,8 +17,7 @@ router.get('/notifications', async (req, res) => {
 // PATCH /notifications/:id/read - Mark a notification as read
 router.patch('/notifications/:id/read', async (req, res) => {
   try {
-    const { id } = req.params;
-    await db.query('UPDATE notifications SET isRead = 1 WHERE id = ?', [id]);
+    await Notification.findByIdAndUpdate(req.params.id, { isRead: true });
     res.json({ message: 'Notification marked as read' });
   } catch (err) {
     console.error('Mark read error:', err);

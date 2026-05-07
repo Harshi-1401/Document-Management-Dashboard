@@ -1,8 +1,9 @@
-// documents.js - Routes for upload and fetching documents
+// documents.js - Upload and fetch document routes using Mongoose
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db');
 const upload = require('../config/multer');
+const Document = require('../models/Document');
+const Notification = require('../models/Notification');
 
 // POST /upload - Upload one or multiple PDF files
 router.post('/upload', upload.array('files', 20), async (req, res) => {
@@ -13,23 +14,24 @@ router.post('/upload', upload.array('files', 20), async (req, res) => {
       return res.status(400).json({ error: 'No files uploaded' });
     }
 
-    const insertedIds = [];
+    const isBackground = files.length > 3;
+    const status = isBackground ? 'processing' : 'uploaded';
 
-    // Insert each uploaded file into the documents table
-    for (const file of files) {
-      // If more than 3 files, mark as 'processing' initially
-      const status = files.length > 3 ? 'processing' : 'uploaded';
-      const [result] = await db.query(
-        `INSERT INTO documents (filename, originalName, size, status, path)
-         VALUES (?, ?, ?, ?, ?)`,
-        [file.filename, file.originalname, file.size, status, file.path]
-      );
-      insertedIds.push(result.insertId);
-    }
+    // Save each file to MongoDB using Mongoose
+    const savedDocs = await Promise.all(
+      files.map((file) =>
+        Document.create({
+          filename: file.filename,
+          originalName: file.originalname,
+          size: file.size,
+          status,
+          path: file.path,
+        })
+      )
+    );
 
-    // If more than 3 files — respond immediately, then process in background
-    if (files.length > 3) {
-      // Send response right away so the frontend doesn't wait
+    // If more than 3 files — respond immediately, process in background
+    if (isBackground) {
       res.json({
         message: `${files.length} files received. Processing in background...`,
         count: files.length,
@@ -40,30 +42,28 @@ router.post('/upload', upload.array('files', 20), async (req, res) => {
       const io = req.app.get('io');
       setTimeout(async () => {
         try {
-          // Update all inserted documents to 'uploaded' after processing
-          for (const id of insertedIds) {
-            await db.query(`UPDATE documents SET status = 'uploaded' WHERE id = ?`, [id]);
-          }
-
-          // Save a notification to the database
-          const message = `${files.length} files have been processed successfully.`;
-          const [notifResult] = await db.query(
-            `INSERT INTO notifications (message, isRead) VALUES (?, 0)`,
-            [message]
+          // Update each document status to 'uploaded' after processing
+          await Promise.all(
+            savedDocs.map((doc) =>
+              Document.findByIdAndUpdate(doc._id, { status: 'uploaded' })
+            )
           );
+
+          // Create a notification in MongoDB
+          const message = `${files.length} files have been processed successfully.`;
+          const notification = await Notification.create({ message });
 
           // Emit real-time event to all connected frontend clients
           io.emit('notification', {
-            id: notifResult.insertId,
-            message,
-            isRead: 0,
-            createdAt: new Date(),
+            id: notification._id,
+            message: notification.message,
+            isRead: notification.isRead,
+            createdAt: notification.createdAt,
           });
         } catch (err) {
           console.error('Background processing error:', err);
         }
-      }, 4000); // 4 second simulated delay
-
+      }, 4000);
     } else {
       res.json({
         message: `${files.length} file(s) uploaded successfully`,
@@ -77,13 +77,11 @@ router.post('/upload', upload.array('files', 20), async (req, res) => {
   }
 });
 
-// GET /documents - Fetch all uploaded documents
+// GET /documents - Fetch all documents, newest first
 router.get('/documents', async (req, res) => {
   try {
-    const [rows] = await db.query(
-      'SELECT * FROM documents ORDER BY createdAt DESC'
-    );
-    res.json(rows);
+    const documents = await Document.find().sort({ createdAt: -1 });
+    res.json(documents);
   } catch (err) {
     console.error('Fetch documents error:', err);
     res.status(500).json({ error: 'Failed to fetch documents' });
