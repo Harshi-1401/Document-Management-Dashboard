@@ -5,6 +5,10 @@ const http = require('http');
 const { Server } = require('socket.io');
 require('dotenv').config();
 
+const initDB = require('./config/initDB');
+const documentRoutes = require('./routes/documents');
+const notificationRoutes = require('./routes/notifications');
+
 const app = express();
 const server = http.createServer(app); // wrap express with http for socket.io
 
@@ -28,6 +32,10 @@ app.get('/', (req, res) => {
   res.json({ message: 'Document Dashboard API is running' });
 });
 
+// Mount routes
+app.use('/', documentRoutes);
+app.use('/', notificationRoutes);
+
 // Socket.IO connection event
 io.on('connection', (socket) => {
   console.log('A client connected:', socket.id);
@@ -41,6 +49,13 @@ io.on('connection', (socket) => {
 app.set('io', io);
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+
+// Initialize DB tables then start server
+initDB().then(() => {
+  server.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}).catch((err) => {
+  console.error('Failed to initialize database:', err);
+  process.exit(1);
 });
