@@ -51,7 +51,7 @@ function UploadSection({ onUploadComplete }) {
         setFileProgresses((prev) =>
           prev.map((f) => ({ ...f, progress: 100, status: 'done' }))
         );
-        onUploadComplete(); // tell parent to refresh documents list
+        onUploadComplete(res.data.background); // tell parent to refresh documents list
       })
       .catch((err) => {
         setFileProgresses((prev) =>
