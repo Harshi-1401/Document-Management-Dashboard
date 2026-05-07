@@ -1,7 +1,15 @@
 // App.jsx - Root component, renders the main dashboard layout
-import React from 'react';
+import React, { useState } from 'react';
+import UploadSection from './components/UploadSection';
 
 function App() {
+  // This counter triggers a re-fetch in the documents table when a new upload completes
+  const [uploadTrigger, setUploadTrigger] = useState(0);
+
+  const handleUploadComplete = () => {
+    setUploadTrigger((prev) => prev + 1);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navbar */}
@@ -11,7 +19,7 @@ function App() {
 
       {/* Main content area */}
       <main className="max-w-5xl mx-auto p-6">
-        <p className="text-gray-500">Phase 1 complete — setup working.</p>
+        <UploadSection onUploadComplete={handleUploadComplete} />
       </main>
     </div>
   );
